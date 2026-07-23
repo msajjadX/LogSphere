@@ -1,0 +1,49 @@
+version: "3.9"
+name: logsphere
+
+# LogSphere — centralized logging platform (external-database variant)
+#   Points at an existing PostgreSQL server / PgBouncer: set DB_HOST and DB_PORT in .env.
+#   docker compose up -d --build
+# Dashboard: http://localhost:8080   API: http://localhost:8080/api/v1  (proxied)
+#
+# New installs: start with docker-compose.bundled-db.yml instead — it brings its own
+# PostgreSQL container and needs no external database.
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    container_name: logsphere-api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__LogSphere: "Host=${DB_HOST:?set DB_HOST in .env};Port=${DB_PORT:-5432};Database=${DB_NAME:-logsphere};Username=${DB_USER:-postgres};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      Database__MigrationsPath: /app/db/migrations
+      Jwt__Secret: ${JWT_SECRET:?set JWT_SECRET in .env}
+      Sanitization__HashKey: ${SANITIZATION_HASH_KEY:-}
+      LOGSPHERE_KEY_PEPPER: ${KEY_PEPPER:?set KEY_PEPPER in .env}
+      Seed__DemoData: ${SEED_DEMO_DATA:-false}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:-Admin#12345}
+      Cors__Origins__0: ${DASHBOARD_ORIGIN:-http://localhost:8080}
+      # GeoIP enrichment: mount a GeoLite2-City.mmdb into the container and point this at it
+      # (empty = disabled). Example volume: ./geoip:/geoip:ro + GEOIP_DB_PATH=/geoip/GeoLite2-City.mmdb
+      Enrichment__GeoIpDatabasePath: ${GEOIP_DB_PATH:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5090/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    container_name: logsphere-web
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped

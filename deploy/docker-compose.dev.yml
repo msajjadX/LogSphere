@@ -1,0 +1,78 @@
+name: logsphere
+
+# LogSphere — DEV stack with source bind-mounts (no image builds).
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# What you get:
+#   • api  — runs `dotnet watch` inside the cached .NET SDK image against the
+#            live source tree. Edit any .cs file and it recompiles / hot-reloads.
+#            No image rebuild. Restores from your local NuGet cache (offline OK).
+#   • web  — nginx serves ../frontend/dist as a bind-mount. Rebuild the bundle
+#            with a host-side watcher (Vite's win32 toolchain can't run in a
+#            Linux container here), and the browser picks it up on refresh:
+#
+#              cd ../frontend && npm run build -- --watch      # keeps dist/ fresh
+#
+#            …or, for true HMR, skip the web container and run the dev server on
+#            the host instead:  cd ../frontend && npm run dev   # http://localhost:5173
+#            (Vite proxies /api → http://localhost:5090, which the api container
+#             publishes below.)
+#
+# Switch back to the built-image prod stack with:
+#   docker compose -f docker-compose.yml up -d --build
+
+services:
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    container_name: logsphere-api
+    working_dir: /workspace/backend
+    command: >
+      dotnet watch --project src/LogSphere.Api --non-interactive
+      run --no-launch-profile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "5090:5090"          # so the host Vite dev server / browser can reach the API
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://0.0.0.0:5090
+      # Docker Desktop does not forward inotify events from Windows bind-mounts,
+      # so dotnet watch must poll to see your edits.
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      ConnectionStrings__LogSphere: "Host=${DB_HOST:?set DB_HOST in .env};Port=${DB_PORT:-5432};Database=${DB_NAME:-logsphere};Username=${DB_USER:-postgres};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      Database__MigrationsPath: /workspace/db/migrations
+      Jwt__Secret: ${JWT_SECRET:?set JWT_SECRET in .env}
+      Sanitization__HashKey: ${SANITIZATION_HASH_KEY:-}
+      LOGSPHERE_KEY_PEPPER: ${KEY_PEPPER:?set KEY_PEPPER in .env}
+      Seed__DemoData: ${SEED_DEMO_DATA:-false}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:-Admin#12345}
+      Cors__Origins__0: ${DASHBOARD_ORIGIN:-http://localhost:8080}
+      Cors__Origins__1: http://localhost:5173
+      # GeoIP enrichment: drop a GeoLite2-City.mmdb under deploy/geoip/ and set
+      # GEOIP_DB_PATH=/workspace/deploy/geoip/GeoLite2-City.mmdb in .env (empty = disabled)
+      Enrichment__GeoIpDatabasePath: ${GEOIP_DB_PATH:-}
+    volumes:
+      - ..:/workspace                                   # live source tree
+      - ${NUGET_PACKAGES:-~/.nuget/packages}:/root/.nuget/packages  # offline restore
+      # anonymous volumes shadow the host's Windows bin/obj so the container
+      # writes its own Linux build artifacts and the two never clash:
+      - /workspace/backend/src/LogSphere.Api/bin
+      - /workspace/backend/src/LogSphere.Api/obj
+      - /workspace/backend/src/LogSphere.Core/bin
+      - /workspace/backend/src/LogSphere.Core/obj
+      - /workspace/backend/src/LogSphere.Sdk/bin
+      - /workspace/backend/src/LogSphere.Sdk/obj
+    restart: unless-stopped
+
+  web:
+    image: logsphere-web:latest      # reuse the already-built nginx image (has nginx.conf)
+    container_name: logsphere-web
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    volumes:
+      - ../frontend/dist:/usr/share/nginx/html:ro   # serve the host-built bundle
+    restart: unless-stopped

@@ -1,0 +1,35 @@
+# logsphere-tail sample configuration
+# Run:  logsphere-tail.exe tail.yaml        (or --once for a single pass)
+# Key:  set LOGSPHERE_KEY in the environment — never store it in this file.
+
+endpoint: http://localhost:8080
+key: ${LOGSPHERE_KEY}
+stateFile: tail-state.json     # offsets live here; delete it to re-read (with fromBeginning)
+pollSeconds: 2
+batchSize: 200
+
+sources:
+  # classic timestamped app log with stack traces
+  - path: "C:/apps/legacy-payroll/logs/*.log"
+    parser: regex
+    pattern: '^(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(?<sev>\w+)\] (?<msg>.*)$'
+    timestampFormat: "yyyy-MM-dd HH:mm:ss"
+    multilineStart: '^\d{4}-\d{2}-\d{2}'      # lines not starting with a date attach to the previous event
+    severityMap: { ERR: Error, FTL: Critical }
+    module: LegacyPayroll
+    fromBeginning: false                       # first run starts at the end (no history flood)
+
+  # IIS W3C access log — becomes ApiRequest events with http fields
+  - path: "C:/inetpub/logs/LogFiles/W3SVC1/*.log"
+    parser: w3c
+    module: IIS
+
+  # JSON-lines log (Serilog compact or any {level,message,...} shape)
+  - path: "D:/services/worker/logs/*.jsonl"
+    parser: json
+    module: WorkerService
+
+  # anything else — every line becomes one Information event
+  - path: "D:/tools/importer/*.txt"
+    parser: plain
+    module: Importer

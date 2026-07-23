@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>logsphere-tail</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- single-binary publish:
+         dotnet publish -c Release -r win-x64 - -self-contained -p:PublishSingleFile=true -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogSphere.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+# LogSphere API + workers (modular monolith)
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY backend/ backend/
+RUN dotnet publish backend/src/LogSphere.Api -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
+COPY --from=build /app/publish .
+COPY db/migrations /app/db/migrations
+ENV ASPNETCORE_URLS=http://0.0.0.0:5090
+EXPOSE 5090
+USER $APP_UID
+ENTRYPOINT ["dotnet", "LogSphere.Api.dll"]

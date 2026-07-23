@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LogSphere.Api/LogSphere.Api.csproj" />
+    <Project Path="src/LogSphere.Core/LogSphere.Core.csproj" />
+    <Project Path="src/LogSphere.Sdk/LogSphere.Sdk.csproj" />
+    <Project Path="src/LogSphere.Tail/LogSphere.Tail.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LogSphere.Tests/LogSphere.Tests.csproj" />
+  </Folder>
+</Solution>
