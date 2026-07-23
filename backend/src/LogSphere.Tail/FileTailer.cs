@@ -76,7 +76,7 @@ internal sealed class FileTailer(TailConfig config, StateStore state, BatchSende
         }
         if (assembler.Flush() is { } trailing) events.Add(trailing);
 
-        if (events.Count > 0 && !await sender.SendAsync(events, ct))
+        if (events.Count > 0 && !await sender.SendAsync(events, source.Key ?? config.Key, ct))
             return 0; // send failed → offset NOT advanced → same bytes re-read next cycle
 
         state.Advance(file, offset + consumed);
