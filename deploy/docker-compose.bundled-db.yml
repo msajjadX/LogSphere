@@ -1,0 +1,62 @@
+version: "3.9"
+name: logsphere
+
+# LogSphere — self-contained variant with a bundled PostgreSQL container.
+# Use for server deployments where no host database exists:
+#   docker compose -f docker-compose.bundled-db.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: logsphere-postgres
+    environment:
+      POSTGRES_DB: logsphere
+      POSTGRES_USER: logsphere
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-prod}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logsphere -d logsphere"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    container_name: logsphere-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__LogSphere: "Host=postgres;Port=5432;Database=logsphere;Username=logsphere;Password=${POSTGRES_PASSWORD:-change-me-in-prod}"
+      Database__MigrationsPath: /app/db/migrations
+      Jwt__Secret: ${JWT_SECRET:?set JWT_SECRET in .env}
+      Sanitization__HashKey: ${SANITIZATION_HASH_KEY:-}
+      LOGSPHERE_KEY_PEPPER: ${KEY_PEPPER:?set KEY_PEPPER in .env}
+      Seed__DemoData: ${SEED_DEMO_DATA:-false}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:-Admin#12345}
+      Cors__Origins__0: ${DASHBOARD_ORIGIN:-http://localhost:8080}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5090/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    container_name: logsphere-web
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

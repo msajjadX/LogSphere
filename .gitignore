@@ -1,0 +1,25 @@
+# build outputs
+bin/
+obj/
+dist/
+dist-sdk/
+dist-tail/
+backend/dist-tail/
+frontend/.vite/
+node_modules/
+
+# secrets & local environment — never commit
+.env
+*.env.local
+appsettings.*.local.json
+deploy/geoip/
+
+# IDE / tooling
+*.user
+.vs/
+.idea/
+.claude/
+
+# runtime artifacts
+*.log
+tail-state.json
