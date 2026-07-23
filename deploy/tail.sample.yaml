@@ -8,9 +8,13 @@ stateFile: tail-state.json     # offsets live here; delete it to re-read (with f
 pollSeconds: 2
 batchSize: 200
 
+# ONE agent can watch MANY applications. Each LogSphere API key identifies one application,
+# so give each source its own key (env-substituted) and every app appears under its own
+# identity in the dashboard; sources without a key use the global one above.
 sources:
   # classic timestamped app log with stack traces
   - path: "C:/apps/legacy-payroll/logs/*.log"
+    key: ${LOGSPHERE_KEY_PAYROLL}
     parser: regex
     pattern: '^(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(?<sev>\w+)\] (?<msg>.*)$'
     timestampFormat: "yyyy-MM-dd HH:mm:ss"

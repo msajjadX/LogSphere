@@ -38,9 +38,11 @@ public sealed class TailConfig
     private void Validate(string configDir)
     {
         if (string.IsNullOrWhiteSpace(Endpoint)) throw new InvalidOperationException("endpoint is required.");
-        if (string.IsNullOrWhiteSpace(Key) || !Key.StartsWith("ls_"))
-            throw new InvalidOperationException("key is required (ls_… — use ${LOGSPHERE_KEY} and set the env var).");
         if (Sources.Count == 0) throw new InvalidOperationException("at least one source is required.");
+        var allSourcesKeyed = Sources.All(s => !string.IsNullOrWhiteSpace(s.Key));
+        if (!allSourcesKeyed && (string.IsNullOrWhiteSpace(Key) || !Key.StartsWith("ls_")))
+            throw new InvalidOperationException(
+                "key is required (ls_… — use ${LOGSPHERE_KEY} and set the env var) unless every source has its own key.");
         Endpoint = Endpoint.TrimEnd('/');
         if (!Path.IsPathRooted(StateFile)) StateFile = Path.Combine(configDir, StateFile);
         foreach (var s in Sources) s.Validate();
@@ -51,6 +53,10 @@ public sealed class TailSource
 {
     /// <summary>File glob, e.g. "C:/apps/legacy/logs/*.log" (directory must exist; * and ? in file name).</summary>
     public string Path { get; set; } = "";
+    /// <summary>Optional per-source API key. Each LogSphere key identifies one application, so give
+    /// each legacy app its own key here and one agent ships every app under its own identity.
+    /// Falls back to the global key when omitted.</summary>
+    public string? Key { get; set; }
     /// <summary>json | regex | plain | w3c</summary>
     public string Parser { get; set; } = "plain";
     /// <summary>regex parser: pattern with named groups — (?&lt;ts&gt;…) (?&lt;sev&gt;…) (?&lt;msg&gt;…); other named groups become properties.</summary>
@@ -74,6 +80,8 @@ public sealed class TailSource
     internal void Validate()
     {
         if (string.IsNullOrWhiteSpace(Path)) throw new InvalidOperationException("source.path is required.");
+        if (Key is not null && !Key.StartsWith("ls_"))
+            throw new InvalidOperationException($"source '{Path}': key must be an ls_… API key (use ${{ENV_VAR}}).");
         Parser = Parser.ToLowerInvariant();
         if (Parser is not ("json" or "regex" or "plain" or "w3c"))
             throw new InvalidOperationException($"unknown parser '{Parser}' (json | regex | plain | w3c).");

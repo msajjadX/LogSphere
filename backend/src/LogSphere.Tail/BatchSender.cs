@@ -16,28 +16,33 @@ internal sealed class BatchSender : IDisposable
     {
         _config = config;
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-        _http.DefaultRequestHeaders.Add("X-LogSphere-Key", config.Key);
     }
 
-    /// <summary>Sends everything in chunks; true only when ALL batches were accepted.</summary>
-    public async Task<bool> SendAsync(IReadOnlyList<JsonObject> events, CancellationToken ct)
+    /// <summary>Sends everything in chunks under the given API key (per-source identity);
+    /// true only when ALL batches were accepted.</summary>
+    public async Task<bool> SendAsync(IReadOnlyList<JsonObject> events, string apiKey, CancellationToken ct)
     {
         for (var i = 0; i < events.Count; i += _config.BatchSize)
         {
             var chunk = events.Skip(i).Take(_config.BatchSize).ToList();
-            if (!await SendBatchAsync(chunk, ct)) return false;
+            if (!await SendBatchAsync(chunk, apiKey, ct)) return false;
         }
         return true;
     }
 
-    private async Task<bool> SendBatchAsync(List<JsonObject> chunk, CancellationToken ct)
+    private async Task<bool> SendBatchAsync(List<JsonObject> chunk, string apiKey, CancellationToken ct)
     {
         var body = new JsonObject { ["events"] = new JsonArray(chunk.Select(e => (JsonNode)e.DeepClone()).ToArray()) };
         for (var attempt = 1; attempt <= 3; attempt++)
         {
             try
             {
-                var res = await _http.PostAsJsonAsync($"{_config.Endpoint}/api/v1/events/batch", body, ct);
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{_config.Endpoint}/api/v1/events/batch")
+                {
+                    Content = JsonContent.Create(body),
+                };
+                req.Headers.Add("X-LogSphere-Key", apiKey);
+                var res = await _http.SendAsync(req, ct);
                 if (res.IsSuccessStatusCode)
                 {
                     // count server-side rejections (malformed events) — they will not be retried:
