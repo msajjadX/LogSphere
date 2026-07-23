@@ -16,6 +16,10 @@ Thanks for your interest! Contributions of all kinds are welcome — bug reports
 - Match the existing code style (file-scoped namespaces, primary constructors, the JSON envelope conventions in `docs/API.md`).
 - Database changes go in a **new** numbered file under `db/migrations/` — never edit an applied migration.
 - By contributing, you agree your contributions are licensed under the Apache License 2.0.
+- **Sign your commits (DCO).** Every commit must carry a `Signed-off-by` line certifying the
+  [Developer Certificate of Origin](https://developercertificate.org/) — just commit with
+  `git commit -s`. This certifies you have the right to submit the code under the project license
+  (and keeps future licensing options clean for the project).
 
 ## Reporting bugs
 
