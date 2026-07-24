@@ -70,7 +70,9 @@ internal static class EventLogSource
                 Console.Error.WriteLine($"[tail] source '{source.EventLog}': Windows Event Log sources only work on Windows - skipping.");
             return 0;
         }
-        return await Task.Run(() => TailWindows(source, config, state, sender, ct), ct);
+        // the guard is repeated inside the lambda so the platform analyzer can see it
+        return await Task.Run(
+            () => OperatingSystem.IsWindows() ? TailWindows(source, config, state, sender, ct) : 0, ct);
     }
 
     [SupportedOSPlatform("windows")]
