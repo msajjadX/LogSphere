@@ -20,6 +20,19 @@ internal sealed class FileTailer(TailConfig config, StateStore state, BatchSende
         var produced = 0;
         foreach (var source in config.Sources)
         {
+            if (source.EventLog is not null)
+            {
+                try
+                {
+                    produced += await EventLogSource.TailChannelAsync(source, config, state, sender, ct);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[tail] event log '{source.EventLog}': {ex.Message}");
+                }
+                continue;
+            }
             foreach (var file in Expand(source.Path))
             {
                 ct.ThrowIfCancellationRequested();

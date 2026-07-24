@@ -37,3 +37,16 @@ sources:
   - path: "D:/tools/importer/*.txt"
     parser: plain
     module: Importer
+
+  # Windows Event Log (Windows only) — SELECTIVE capture, not the whole firehose:
+  # only Warning+ from these two providers in the Application channel
+  - eventLog: Application
+    minLevel: Warning                        # Verbose | Information | Warning | Error | Critical
+    providers: [ "MSSQLSERVER", ".NET Runtime" ]
+    module: SqlServer
+
+  # Security channel, only the events you care about (failed logon / account lockout);
+  # arrives as LogSphere "Security" events automatically
+  - eventLog: Security
+    eventIds: [ 4625, 4740 ]
+    key: ${LOGSPHERE_KEY_SECURITY}
