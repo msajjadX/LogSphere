@@ -104,4 +104,13 @@ internal sealed class StateStore(string path)
     {
         if (_files.TryGetValue(filePath, out var state)) state.Offset = newOffset;
     }
+
+    /// <summary>Named positions for non-file sources (Event Log record ids). -1 = never seen.</summary>
+    public long GetPosition(string key) => _files.TryGetValue(key, out var s) ? s.Offset : -1;
+
+    public void SetPosition(string key, long value)
+    {
+        if (_files.TryGetValue(key, out var s)) s.Offset = value;
+        else _files[key] = new FileState { Offset = value };
+    }
 }

@@ -51,8 +51,21 @@ public sealed class TailConfig
 
 public sealed class TailSource
 {
-    /// <summary>File glob, e.g. "C:/apps/legacy/logs/*.log" (directory must exist; * and ? in file name).</summary>
+    /// <summary>File glob, e.g. "C:/apps/legacy/logs/*.log" (directory must exist; * and ? in file
+    /// name). A source is EITHER file-based (path) or Event-Log-based (eventLog) — set one.</summary>
     public string Path { get; set; } = "";
+    /// <summary>Windows Event Log channel to subscribe to instead of files: "Application",
+    /// "System", "Security", or any custom channel. Windows only; ignored with a warning on Linux.</summary>
+    public string? EventLog { get; set; }
+    /// <summary>Event Log only: minimum level to capture — Verbose | Information | Warning |
+    /// Error | Critical. Default Information (skips Verbose noise).</summary>
+    public string? MinLevel { get; set; }
+    /// <summary>Event Log only: capture only these provider/source names (e.g. "MSSQLSERVER",
+    /// ".NET Runtime"). Empty = all providers.</summary>
+    public List<string> Providers { get; set; } = new();
+    /// <summary>Event Log only: capture only these event IDs (e.g. [4625, 4740] for failed
+    /// logons / lockouts). Empty = all IDs.</summary>
+    public List<int> EventIds { get; set; } = new();
     /// <summary>Optional per-source API key. Each LogSphere key identifies one application, so give
     /// each legacy app its own key here and one agent ships every app under its own identity.
     /// Falls back to the global key when omitted.</summary>
@@ -79,9 +92,18 @@ public sealed class TailSource
 
     internal void Validate()
     {
-        if (string.IsNullOrWhiteSpace(Path)) throw new InvalidOperationException("source.path is required.");
+        var isEventLog = !string.IsNullOrWhiteSpace(EventLog);
+        if (isEventLog == !string.IsNullOrWhiteSpace(Path))
+            throw new InvalidOperationException("each source needs exactly one of: path (files) or eventLog (Windows Event Log channel).");
         if (Key is not null && !Key.StartsWith("ls_"))
-            throw new InvalidOperationException($"source '{Path}': key must be an ls_… API key (use ${{ENV_VAR}}).");
+            throw new InvalidOperationException($"source '{Path}{EventLog}': key must be an ls_… API key (use ${{ENV_VAR}}).");
+        if (isEventLog)
+        {
+            if (MinLevel is not null && EventLogSource.ParseMinLevel(MinLevel) is null)
+                throw new InvalidOperationException(
+                    $"source '{EventLog}': unknown minLevel '{MinLevel}' (Verbose | Information | Warning | Error | Critical).");
+            return; // file-parser options below don't apply
+        }
         Parser = Parser.ToLowerInvariant();
         if (Parser is not ("json" or "regex" or "plain" or "w3c"))
             throw new InvalidOperationException($"unknown parser '{Parser}' (json | regex | plain | w3c).");
