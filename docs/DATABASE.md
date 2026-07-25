@@ -65,3 +65,12 @@ specialized aggregate the UI needs. This is the hybrid recommended in the produc
 Storage/day ≈ events/sec × 86,400 × avg event size (2–8 KB sanitized) × 1.4 (index overhead).
 At 500 ev/s ≈ 120–350 GB/month before retention; monthly partitions keep pruning O(1).
 Revisit PG-as-queue at sustained >2–3k ev/s (see DESIGN.md §13).
+
+## PgBouncer caution
+
+Do NOT point LogSphere at PgBouncer (or any transaction/session pooler) — connect the API
+directly to PostgreSQL. The dashboard issues bursts of parallel queries that are cancelled when
+users navigate; PostgreSQL cancel requests routed through a pooler can hit the wrong backend
+session and corrupt another connection's protocol state (symptoms: `BindComplete while expecting
+ReadyForQueryMessage`, sporadic `LOG-SERVER-001` on random endpoints). The API maintains its own
+connection pool, so an external pooler adds no value here.
