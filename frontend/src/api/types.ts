@@ -414,6 +414,12 @@ export interface AlertRule {
   actionFilter?: string | null;
   /** IngestSilence only: trigger when the window saw ≤ this many events (0 = total silence) */
   minCount?: number;
+  /** optional schedule: rule evaluates only inside this window (minutes since midnight in timeZone;
+   * from > to wraps past midnight); activeDays 0=Sun…6=Sat, empty = every day */
+  activeFromMinute?: number | null;
+  activeToMinute?: number | null;
+  activeDays?: number[] | null;
+  timeZone?: string | null;
 }
 
 export interface AlertOccurrence {

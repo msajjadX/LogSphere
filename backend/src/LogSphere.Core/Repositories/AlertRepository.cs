@@ -58,7 +58,7 @@ public sealed class AlertRepository(Db db)
         await using var cmd = db.Cmd($"""
             SELECT id, tenant_id, project_id, environment_id, name, enabled, condition_type, threshold,
                    window_minutes, cooldown_minutes, severity_filter, channels, created_at, last_triggered_at,
-                   module_filter, action_filter, min_count
+                   module_filter, action_filter, min_count, active_from, active_to, active_days, time_zone
             FROM alert_rules {(enabledOnly ? "WHERE enabled" : "")} ORDER BY name
             """);
         var list = new List<AlertRule>();
@@ -78,7 +78,11 @@ public sealed class AlertRepository(Db db)
                 LastTriggeredAt = reader.IsDBNull(13) ? null : reader.GetFieldValue<DateTimeOffset>(13),
                 ModuleFilter = reader.IsDBNull(14) ? null : reader.GetString(14),
                 ActionFilter = reader.IsDBNull(15) ? null : reader.GetString(15),
-                MinCount = reader.GetInt32(16)
+                MinCount = reader.GetInt32(16),
+                ActiveFromMinute = reader.IsDBNull(17) ? null : reader.GetInt16(17),
+                ActiveToMinute = reader.IsDBNull(18) ? null : reader.GetInt16(18),
+                ActiveDays = reader.IsDBNull(19) ? null : reader.GetFieldValue<short[]>(19),
+                TimeZone = reader.IsDBNull(20) ? null : reader.GetString(20)
             });
         return list;
     }
@@ -89,11 +93,13 @@ public sealed class AlertRepository(Db db)
         await using var cmd = db.Cmd("""
             INSERT INTO alert_rules (id, tenant_id, project_id, environment_id, name, enabled, condition_type,
                                      threshold, window_minutes, cooldown_minutes, severity_filter, channels,
-                                     module_filter, action_filter, min_count)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                                     module_filter, action_filter, min_count,
+                                     active_from, active_to, active_days, time_zone)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
             ON CONFLICT (id) DO UPDATE SET tenant_id=$2, project_id=$3, environment_id=$4, name=$5, enabled=$6,
                 condition_type=$7, threshold=$8, window_minutes=$9, cooldown_minutes=$10,
-                severity_filter=$11, channels=$12, module_filter=$13, action_filter=$14, min_count=$15
+                severity_filter=$11, channels=$12, module_filter=$13, action_filter=$14, min_count=$15,
+                active_from=$16, active_to=$17, active_days=$18, time_zone=$19
             """);
         cmd.Parameters.AddWithValue(r.Id);
         cmd.Parameters.AddWithValue(r.TenantId);
@@ -110,6 +116,10 @@ public sealed class AlertRepository(Db db)
         cmd.Parameters.AddWithValue(string.IsNullOrWhiteSpace(r.ModuleFilter) ? DBNull.Value : (object)r.ModuleFilter.Trim());
         cmd.Parameters.AddWithValue(string.IsNullOrWhiteSpace(r.ActionFilter) ? DBNull.Value : (object)r.ActionFilter.Trim());
         cmd.Parameters.AddWithValue(Math.Max(0, r.MinCount));
+        cmd.Parameters.AddWithValue(r.ActiveFromMinute is { } af ? (object)(short)Math.Clamp(af, 0, 1439) : DBNull.Value);
+        cmd.Parameters.AddWithValue(r.ActiveToMinute is { } at ? (object)(short)Math.Clamp(at, 0, 1439) : DBNull.Value);
+        cmd.Parameters.AddWithValue(r.ActiveDays is { Length: > 0 } ? (object)r.ActiveDays : DBNull.Value);
+        cmd.Parameters.AddWithValue(string.IsNullOrWhiteSpace(r.TimeZone) ? DBNull.Value : (object)r.TimeZone.Trim());
         await cmd.ExecuteNonQueryAsync(ct);
         return r;
     }
