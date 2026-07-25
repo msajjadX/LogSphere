@@ -151,7 +151,7 @@ var forwarded = new ForwardedHeadersOptions
                        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto,
     ForwardLimit = 1,
 };
-forwarded.KnownNetworks.Clear(); // the proxy's container IP is dynamic — trust the immediate peer
+forwarded.KnownIPNetworks.Clear(); // the proxy's container IP is dynamic — trust the immediate peer
 forwarded.KnownProxies.Clear();
 app.UseForwardedHeaders(forwarded);
 app.UseMiddleware<CorrelationMiddleware>();
