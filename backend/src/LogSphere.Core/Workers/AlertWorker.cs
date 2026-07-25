@@ -36,6 +36,7 @@ public sealed class AlertWorker(
                 var channels = await alerts.ListChannelsAsync(ct);
                 foreach (var rule in rules)
                 {
+                    if (!IsActiveNow(rule, DateTimeOffset.UtcNow)) continue; // outside its schedule
                     try { await EvaluateAsync(rule, channels, ct); }
                     catch (Exception ex) when (!ct.IsCancellationRequested)
                     {
@@ -50,6 +51,33 @@ public sealed class AlertWorker(
             }
             try { await Task.Delay(interval, ct); } catch (OperationCanceledException) { }
         }
+    }
+
+    /// <summary>Whether the rule's optional schedule (active days + hours, in its time zone)
+    /// allows evaluation right now. No schedule = always active. An unknown time zone falls back
+    /// to UTC rather than silencing the rule. from &gt; to wraps past midnight (e.g. 22:00–06:00).</summary>
+    public static bool IsActiveNow(AlertRule rule, DateTimeOffset utcNow)
+    {
+        var tz = TimeZoneInfo.Utc;
+        if (!string.IsNullOrWhiteSpace(rule.TimeZone))
+        {
+            try { tz = TimeZoneInfo.FindSystemTimeZoneById(rule.TimeZone.Trim()); }
+            catch { /* unknown id — evaluate in UTC instead of never */ }
+        }
+        var local = TimeZoneInfo.ConvertTime(utcNow, tz);
+
+        if (rule.ActiveDays is { Length: > 0 } days && !days.Contains((short)local.DayOfWeek))
+            return false;
+
+        if (rule.ActiveFromMinute is { } from && rule.ActiveToMinute is { } to && from != to)
+        {
+            var minute = local.Hour * 60 + local.Minute;
+            var inside = from < to
+                ? minute >= from && minute < to
+                : minute >= from || minute < to; // window wraps past midnight
+            if (!inside) return false;
+        }
+        return true;
     }
 
     private async Task EvaluateAsync(AlertRule rule, List<NotificationChannel> allChannels, CancellationToken ct)

@@ -147,6 +147,10 @@ interface RuleForm {
   moduleFilter: string;
   actionFilter: string;
   minCount: string;
+  activeDays: number[];
+  activeFrom: string;
+  activeTo: string;
+  timeZone: string;
 }
 
 function emptyRuleForm(): RuleForm {
@@ -164,8 +168,23 @@ function emptyRuleForm(): RuleForm {
     moduleFilter: '',
     actionFilter: '',
     minCount: '0',
+    activeDays: [],
+    activeFrom: '',
+    activeTo: '',
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? '',
   };
 }
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** minutes since midnight ⇄ "HH:mm" */
+const minutesToHHmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const hhmmToMinutes = (v: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  if (!m) return null;
+  const total = Number(m[1]) * 60 + Number(m[2]);
+  return total >= 0 && total < 1440 ? total : null;
+};
 
 function RulesTab({ channels }: { channels: AlertChannel[] }) {
   const { projects, environments } = useLookups();
@@ -201,6 +220,10 @@ function RulesTab({ channels }: { channels: AlertChannel[] }) {
       moduleFilter: r.moduleFilter ?? '',
       actionFilter: r.actionFilter ?? '',
       minCount: String(r.minCount ?? 0),
+      activeDays: (r.activeDays ?? []).map(Number),
+      activeFrom: r.activeFromMinute != null ? minutesToHHmm(r.activeFromMinute) : '',
+      activeTo: r.activeToMinute != null ? minutesToHHmm(r.activeToMinute) : '',
+      timeZone: r.timeZone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? ''),
     });
     setFormError(null);
     setModalOpen(true);
@@ -227,6 +250,20 @@ function RulesTab({ channels }: { channels: AlertChannel[] }) {
         moduleFilter: form.conditionType === 'IngestSilence' ? form.moduleFilter.trim() || null : null,
         actionFilter: form.conditionType === 'IngestSilence' ? form.actionFilter.trim() || null : null,
         minCount: form.conditionType === 'IngestSilence' ? Math.max(0, Number(form.minCount) || 0) : 0,
+        // schedule: hours only count as a pair; timezone only matters when a schedule exists
+        activeFromMinute:
+          hhmmToMinutes(form.activeFrom) != null && hhmmToMinutes(form.activeTo) != null
+            ? hhmmToMinutes(form.activeFrom)
+            : null,
+        activeToMinute:
+          hhmmToMinutes(form.activeFrom) != null && hhmmToMinutes(form.activeTo) != null
+            ? hhmmToMinutes(form.activeTo)
+            : null,
+        activeDays: form.activeDays.length > 0 ? form.activeDays : null,
+        timeZone:
+          (form.activeDays.length > 0 || hhmmToMinutes(form.activeFrom) != null) && form.timeZone.trim()
+            ? form.timeZone.trim()
+            : null,
       };
       if (editing) await api.put(`/alerts/rules/${encodeURIComponent(String(editing.id))}`, body);
       else await api.post('/alerts/rules', body);
@@ -421,6 +458,53 @@ function RulesTab({ channels }: { channels: AlertChannel[] }) {
             <TextField label="Threshold" type="number" value={form.threshold} onChange={(v) => setForm((f) => ({ ...f, threshold: v }))} />
             <TextField label="Window (min)" type="number" value={form.windowMinutes} onChange={(v) => setForm((f) => ({ ...f, windowMinutes: v }))} />
             <TextField label="Cooldown (min)" type="number" value={form.cooldownMinutes} onChange={(v) => setForm((f) => ({ ...f, cooldownMinutes: v }))} />
+          </div>
+          <div className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Active schedule (optional)
+            </p>
+            <p className="mb-2 text-xs text-gray-500">
+              Evaluate this rule only on the selected days and hours — e.g. skip nights and Sundays when
+              silence or low volume is normal. Leave empty for 24/7. Hours may wrap midnight (22:00 → 06:00).
+            </p>
+            <div className="mb-2.5 flex flex-wrap gap-1.5">
+              {DAY_LABELS.map((label, day) => {
+                const on = form.activeDays.includes(day);
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-pressed={on}
+                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      on
+                        ? 'border-indigo-600 bg-indigo-600 text-white'
+                        : 'border-gray-300 text-gray-600 hover:border-indigo-400 dark:border-gray-600 dark:text-gray-300'
+                    }`}
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        activeDays: on ? f.activeDays.filter((d) => d !== day) : [...f.activeDays, day].sort(),
+                      }))
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              <span className="self-center text-[11px] text-gray-400">
+                {form.activeDays.length === 0 ? 'every day' : ''}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <TextField label="From" type="time" value={form.activeFrom} onChange={(v) => setForm((f) => ({ ...f, activeFrom: v }))} />
+              <TextField label="Until" type="time" value={form.activeTo} onChange={(v) => setForm((f) => ({ ...f, activeTo: v }))} />
+              <TextField
+                label="Time zone"
+                value={form.timeZone}
+                onChange={(v) => setForm((f) => ({ ...f, timeZone: v }))}
+                placeholder="e.g. Asia/Karachi"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Select

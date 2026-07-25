@@ -146,6 +146,14 @@ public sealed class AlertRule
     public string? ActionFilter { get; set; }
     /// <summary>IngestSilence only: trigger when the window saw ≤ this many events (0 = total silence).</summary>
     public int MinCount { get; set; }
+    /// <summary>Schedule (any condition type): rule is evaluated only inside this window. Minutes
+    /// since midnight in <see cref="TimeZone"/>; from &gt; to wraps past midnight. Null = always.</summary>
+    public int? ActiveFromMinute { get; set; }
+    public int? ActiveToMinute { get; set; }
+    /// <summary>Days the rule is active (0 = Sunday … 6 = Saturday). Null/empty = every day.</summary>
+    public short[]? ActiveDays { get; set; }
+    /// <summary>IANA time zone the schedule is expressed in (e.g. "Asia/Karachi"). Null = UTC.</summary>
+    public string? TimeZone { get; set; }
     public Guid[] Channels { get; set; } = Array.Empty<Guid>();
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastTriggeredAt { get; set; }
