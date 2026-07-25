@@ -36,11 +36,15 @@ public sealed class LogSphereCorrelationMiddleware(RequestDelegate next)
         await next(context);
     }
 
-    /// <summary>The real caller IP: first hop of X-Forwarded-For (set by a reverse proxy such as
-    /// nginx/IIS ARR), then X-Real-IP, then the socket address. On a directly internet-exposed
-    /// app with no proxy in front, note that forwarded headers are client-controlled.</summary>
+    /// <summary>The real caller IP: CF-Connecting-IP when behind Cloudflare (authoritative — set
+    /// by Cloudflare itself and it survives an HAProxy TCP/SSL passthrough untouched), then the
+    /// first hop of X-Forwarded-For (nginx/IIS ARR), then X-Real-IP, then the socket address. On a
+    /// directly internet-exposed app with no proxy in front, forwarded headers are client-controlled.</summary>
     internal static string? ResolveClientIp(HttpContext context)
     {
+        var cf = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(cf) && cf.Length <= 64) return cf.Trim();
+
         var forwarded = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(forwarded))
         {
