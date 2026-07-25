@@ -7,20 +7,26 @@ public sealed class Db : IAsyncDisposable
 {
     public NpgsqlDataSource DataSource { get; }
 
+    /// <summary>True when Npgsql's client-side pool is active. Set <c>Pooling=false</c> in the
+    /// connection string when an external pooler (PgBouncer) owns the connections — the client
+    /// pool is then disabled and each operation opens a fresh (cheap) pooler connection.</summary>
+    public bool PoolingEnabled { get; }
+
     public Db(string connectionString)
     {
-        // Keepalives + short idle lifetime so stale pooled connections (e.g. after a
-        // database restart) are detected and pruned instead of failing user requests.
-        var csb = new NpgsqlConnectionStringBuilder(connectionString)
+        var csb = new NpgsqlConnectionStringBuilder(connectionString) { TcpKeepAlive = true };
+        PoolingEnabled = csb.Pooling;
+        if (csb.Pooling)
         {
-            TcpKeepAlive = true,
-            KeepAlive = 30,
-            ConnectionIdleLifetime = 60,
-            ConnectionPruningInterval = 10,
+            // Keepalives + short idle lifetime so stale pooled connections (e.g. after a
+            // database restart) are detected and pruned instead of failing user requests.
+            csb.KeepAlive = 30;
+            csb.ConnectionIdleLifetime = 60;
+            csb.ConnectionPruningInterval = 10;
             // dashboard page loads fire ~8 parallel queries; keep a warm floor so bursts
             // never depend on a batch of brand-new physical connections
-            MinPoolSize = 10
-        };
+            csb.MinPoolSize = 10;
+        }
         var builder = new NpgsqlDataSourceBuilder(csb.ConnectionString);
         builder.EnableDynamicJson();
         DataSource = builder.Build();
@@ -32,6 +38,7 @@ public sealed class Db : IAsyncDisposable
     /// user-facing burst after startup hits a warm pool. Best-effort; failures are swallowed.</summary>
     public async Task WarmUpAsync(int connections = 10, CancellationToken ct = default)
     {
+        if (!PoolingEnabled) return; // nothing to warm — the external pooler owns connections
         try
         {
             var opened = await Task.WhenAll(Enumerable.Range(0, connections).Select(async _ =>
