@@ -41,7 +41,7 @@ services:
       # so dotnet watch must poll to see your edits.
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
-      ConnectionStrings__LogSphere: "Host=${DB_HOST:?set DB_HOST in .env};Port=${DB_PORT:-5432};Database=${DB_NAME:-logsphere};Username=${DB_USER:-postgres};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      ConnectionStrings__LogSphere: "Host=${DB_HOST:?set DB_HOST in .env};Port=${DB_PORT:-5432};Database=${DB_NAME:-logsphere};Username=${DB_USER:-postgres};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env};Pooling=${DB_POOLING:-true}"
       Database__MigrationsPath: /workspace/db/migrations
       Jwt__Secret: ${JWT_SECRET:?set JWT_SECRET in .env}
       Sanitization__HashKey: ${SANITIZATION_HASH_KEY:-}

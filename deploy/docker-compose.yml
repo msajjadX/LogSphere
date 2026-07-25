@@ -19,7 +19,7 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__LogSphere: "Host=${DB_HOST:?set DB_HOST in .env};Port=${DB_PORT:-5432};Database=${DB_NAME:-logsphere};Username=${DB_USER:-postgres};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      ConnectionStrings__LogSphere: "Host=${DB_HOST:?set DB_HOST in .env};Port=${DB_PORT:-5432};Database=${DB_NAME:-logsphere};Username=${DB_USER:-postgres};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env};Pooling=${DB_POOLING:-true}"
       Database__MigrationsPath: /app/db/migrations
       Jwt__Secret: ${JWT_SECRET:?set JWT_SECRET in .env}
       Sanitization__HashKey: ${SANITIZATION_HASH_KEY:-}
