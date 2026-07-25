@@ -20,6 +20,54 @@ immutable trails, exception fingerprint grouping with triage workflow, dead-man-
 ("the nightly job logged nothing"), and identity that is always resolved server-side from the API
 key — a sender cannot lie about which tenant/project/application it is.
 
+## Screenshots
+
+**Overview** — live KPIs, severity timeline, failing routes and most-affected projects at a glance:
+
+![Overview dashboard](docs/screenshots/overview.png)
+
+**Log Explorer** — Excel-style column filters, free-text search, live tail, and events grouped by
+correlation ID so one business request reads as one expandable story:
+
+![Log Explorer](docs/screenshots/log-explorer.png)
+
+**Trace Viewer** — span waterfall ("gateway time vs database time"), every event of the trace, and
+an animated replay of the request flow:
+
+![Trace Viewer](docs/screenshots/trace-viewer.png)
+
+**Audit Explorer** — immutable who/what/when/from-where with field-level old → new diffs:
+
+![Audit diff](docs/screenshots/audit-diff.png)
+
+**Event detail** — full envelope of any event, including enriched properties (here: a Windows
+Event Log record captured by the `logsphere-tail` agent):
+
+![Event detail](docs/screenshots/event-detail.png)
+
+## Why LogSphere instead of ELK / Grafana / Datadog?
+
+Those are excellent general-purpose observability stacks. LogSphere is built for a different
+center of gravity: **business applications where the audit trail is a first-class requirement**
+— ERPs, financial systems, government/back-office software.
+
+| | LogSphere | General log stacks |
+|---|---|---|
+| **Audit semantics** | Native: before/after value diffs, changed-field highlighting, actor + source IP + reason on every record, immutable trail | A document store — you build audit UX yourself |
+| **Sender identity** | Resolved **server-side from the API key**; a sender cannot lie about its tenant/project/application | Whatever the shipper claims |
+| **Sensitive data** | Sanitized server-side before storage (passwords, tokens, cards, configurable rules) — a platform guarantee | Per-pipeline DIY that someone eventually forgets |
+| **Exception handling** | Fingerprint grouping + triage workflow (status, assignee, notes) built in | Needs Sentry or custom work |
+| **Silence detection** | Dead-man-switch alerts with schedules ("the nightly job logged nothing on a workday") | Rarely first-class |
+| **Operational weight** | Two containers + PostgreSQL | Cluster with heap tuning, shards, ILM |
+| **Ingestion** | Native SDK, OTLP (protobuf + JSON), plain REST, file/Event-Log tailing agent | Rich ecosystem (Beats, agents, …) |
+
+**When NOT to choose LogSphere (honest edition):** if your dominant need is relevance-ranked
+full-text search over terabytes, per-port bandwidth dashboards, ML anomaly detection, or a
+metrics/APM suite — use Elastic or Grafana; they are the right tool there. LogSphere's sweet spot
+is tens-to-hundreds of GB of *structured* application, audit and exception events where
+"who did what, from where, and what broke" is the question that matters — answered out of the box
+on one PostgreSQL instance.
+
 ## Repository layout
 
 | Path | Contents |
