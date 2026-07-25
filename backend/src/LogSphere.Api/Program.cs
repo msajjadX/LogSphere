@@ -140,6 +140,20 @@ if (migrateOnly)
 }
 
 // ---------------------------------------------------------------- pipeline
+// Behind the nginx container, the socket address is Docker-internal — X-Forwarded-For (set by
+// deploy/nginx.conf) carries the real caller. This rewrites RemoteIpAddress FIRST so everything
+// downstream (access audit, login throttle, API-key IP allowlists) sees the true client.
+// ForwardLimit=1 trusts only the rightmost XFF entry — the one our own proxy appended — so a
+// client-supplied spoofed header is ignored.
+var forwarded = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1,
+};
+forwarded.KnownNetworks.Clear(); // the proxy's container IP is dynamic — trust the immediate peer
+forwarded.KnownProxies.Clear();
+app.UseForwardedHeaders(forwarded);
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseCors();
