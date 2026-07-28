@@ -66,6 +66,8 @@ export function UsersTab() {
   const [newPassword, setNewPassword] = useState('');
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetDone, setResetDone] = useState(false);
+  /** Set only when the server generated the password: it is the one copy anyone will ever see. */
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditing(null);
@@ -122,9 +124,13 @@ export function UsersTab() {
     setBusy(true);
     setResetError(null);
     try {
-      await api.post(`/admin/users/${encodeURIComponent(String(resetUser.id))}/reset-password`, {
-        newPassword,
-      });
+      const result = await api.post<{ temporaryPassword: string; generated: boolean }>(
+        `/admin/users/${encodeURIComponent(String(resetUser.id))}/reset-password`,
+        { newPassword: newPassword.trim() ? newPassword : null },
+      );
+      // Nothing else in the system can ever show this value again, so keep it on screen
+      // rather than telling the admin to "share the new password" they were never given.
+      setGeneratedPassword(result.generated ? result.temporaryPassword : null);
       setResetDone(true);
     } catch (e) {
       setResetError(toApiError(e).message);
@@ -185,6 +191,7 @@ export function UsersTab() {
                 setNewPassword('');
                 setResetDone(false);
                 setResetError(null);
+                setGeneratedPassword(null);
               }}
             >
               <KeyRound className="h-3 w-3" /> Reset password
@@ -339,7 +346,12 @@ export function UsersTab() {
             <button type="button" className="btn-secondary" onClick={() => setResetUser(null)}>
               Close
             </button>
-            <button type="button" className="btn-primary" onClick={resetPassword} disabled={busy || !newPassword}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={resetPassword}
+              disabled={busy || (newPassword.length > 0 && newPassword.trim().length < 10)}
+            >
               {busy && <Spinner className="h-3.5 w-3.5 !text-white" />} Reset password
             </button>
           </>
@@ -348,11 +360,27 @@ export function UsersTab() {
         <div className="space-y-3">
           {resetError && <ErrorBanner error={resetError} />}
           {resetDone && (
-            <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-              Password reset. Share the new password with the user through a secure channel.
-            </p>
+            <div className="space-y-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+              {generatedPassword ? (
+                <>
+                  <p>
+                    Password reset. This generated password is shown once and cannot be retrieved
+                    again — copy it now and share it through a secure channel.
+                  </p>
+                  <code className="block select-all break-all rounded bg-emerald-100 px-2 py-1 font-mono text-sm text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-100">
+                    {generatedPassword}
+                  </code>
+                </>
+              ) : (
+                <p>Password reset. Share the new password with the user through a secure channel.</p>
+              )}
+              <p>The user must change it at next login.</p>
+            </div>
           )}
           <TextField label="New password" type="password" value={newPassword} onChange={setNewPassword} autoFocus />
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            At least 10 characters — or leave blank to generate one.
+          </p>
         </div>
       </Modal>
     </div>

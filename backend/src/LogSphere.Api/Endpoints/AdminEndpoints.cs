@@ -205,11 +205,22 @@ public static class AdminEndpoints
             var user = await resolver.GetAsync(ctx, ct);
             if (user is null) return ApiEnvelope.Unauthorized(ctx);
             if (!user.IsSuperAdmin) return ApiEnvelope.Forbidden(ctx);
-            var temp = body?.NewPassword is { Length: >= 10 } chosen ? chosen : "Tmp#" + Guid.NewGuid().ToString("N")[..12];
+            // A password the administrator actually typed is either used or refused — never
+            // silently replaced. Substituting a generated one for anything under 10 characters
+            // reported success while setting a secret the caller never saw, which left the
+            // account unusable and looked exactly like "reset password doesn't work".
+            var supplied = body?.NewPassword;
+            if (!string.IsNullOrWhiteSpace(supplied) && supplied.Trim().Length < 10)
+                return ApiEnvelope.Validation(ctx, "New password must be at least 10 characters.");
+
+            var generated = string.IsNullOrWhiteSpace(supplied);
+            var temp = generated ? "Tmp#" + Guid.NewGuid().ToString("N")[..12] : supplied!;
             await admin.SetPasswordAsync(id, temp, mustChange: true, ct);
-            await Audit(admin, user, ctx, "PasswordReset", new { id }, ct);
-            return ApiEnvelope.Ok(ctx, new { temporaryPassword = temp },
-                "Temporary password generated. The user must change it at next login.");
+            await Audit(admin, user, ctx, "PasswordReset", new { id, generated }, ct);
+            return ApiEnvelope.Ok(ctx, new { temporaryPassword = temp, generated },
+                generated
+                    ? "Temporary password generated. The user must change it at next login."
+                    : "Password set. The user must change it at next login.");
         });
 
         // -------------------------------------------------------- redaction rules
