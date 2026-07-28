@@ -89,6 +89,11 @@ public sealed class LogSphereLoggerProvider(LogSphereClient client, IOptions<Log
 
     private sealed class BridgeLogger(LogSphereClient client, LogSphereOptions options, string category) : ILogger
     {
+        // Re-entrancy guard: if anything reached from Submit() ever logs (directly or via a
+        // future change), that log call must not re-enter the bridge and feed the pipeline
+        // it is reporting on. The category filter in IsEnabled covers LogSphere.* only.
+        [ThreadStatic] private static bool _inBridge;
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) =>
@@ -98,7 +103,7 @@ public sealed class LogSphereLoggerProvider(LogSphereClient client, IOptions<Log
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            if (!IsEnabled(logLevel)) return;
+            if (_inBridge || !IsEnabled(logLevel)) return;
             var envelope = exception is not null
                 ? LogSphereExceptionMiddleware.BuildExceptionEvent(exception, category, formatter(state, exception))
                 : new JsonObject
@@ -116,7 +121,9 @@ public sealed class LogSphereLoggerProvider(LogSphereClient client, IOptions<Log
                 LogLevel.Error => "Error",
                 _ => "Critical"
             };
-            client.Submit(envelope);
+            _inBridge = true;
+            try { client.Submit(envelope); }
+            finally { _inBridge = false; }
         }
     }
 }

@@ -43,6 +43,12 @@ public sealed class LogSphereOptions
 
     /// <summary>Minimum severity forwarded from the ILogger bridge.</summary>
     public LogLevelThreshold LoggerBridgeMinimumLevel { get; set; } = LogLevelThreshold.Warning;
+
+    /// <summary>Optional sink for the SDK's own diagnostics (send failures, circuit state).
+    /// Deliberately NOT an ILogger: the transport must never log through the pipeline it feeds,
+    /// and taking ILogger in the client would recreate the DI cycle with ILoggerFactory.
+    /// Wire it to Console.Error or a file — never back into LogSphere.</summary>
+    public Action<string, Exception?>? OnDiagnostic { get; set; }
 }
 
 public enum LogLevelThreshold { Trace, Debug, Information, Warning, Error, Critical }

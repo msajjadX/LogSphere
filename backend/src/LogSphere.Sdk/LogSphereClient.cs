@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LogSphere.Sdk;
@@ -14,7 +13,6 @@ public sealed class LogSphereClient : IAsyncDisposable
     private readonly LogSphereOptions _options;
     private readonly ClientSanitizer _sanitizer;
     private readonly IHttpClientFactory _httpFactory;
-    private readonly ILogger<LogSphereClient> _logger;
     private readonly Channel<JsonObject> _channel;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _pumpTask;
@@ -25,13 +23,19 @@ public sealed class LogSphereClient : IAsyncDisposable
 
     public long DroppedEvents => Interlocked.Read(ref _droppedEvents);
 
-    public LogSphereClient(IOptions<LogSphereOptions> options, IHttpClientFactory httpFactory,
-        ILogger<LogSphereClient> logger)
+    private void Diag(string message, Exception? ex = null)
+    {
+        try { _options.OnDiagnostic?.Invoke(message, ex); } catch { /* diagnostics must never throw */ }
+    }
+
+    // No ILogger here, on purpose: the transport must not depend on the logging pipeline it
+    // feeds (the bridge provider would make ILoggerFactory ⇄ LogSphereClient a DI cycle, and
+    // "send failed" events would loop back into the sender). Diagnostics go to OnDiagnostic.
+    public LogSphereClient(IOptions<LogSphereOptions> options, IHttpClientFactory httpFactory)
     {
         _options = options.Value;
         _sanitizer = new ClientSanitizer(_options.ExtraSensitiveKeys);
         _httpFactory = httpFactory;
-        _logger = logger;
         _channel = Channel.CreateBounded<JsonObject>(new BoundedChannelOptions(_options.BufferCapacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
@@ -55,7 +59,7 @@ public sealed class LogSphereClient : IAsyncDisposable
         catch (Exception ex)
         {
             // local diagnostics only — logging failures must never cascade
-            _logger.LogDebug(ex, "LogSphere submit failed");
+            Diag("LogSphere submit failed", ex);
         }
     }
 
@@ -114,7 +118,7 @@ public sealed class LogSphereClient : IAsyncDisposable
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "LogSphere pump error");
+                Diag("LogSphere pump error", ex);
             }
         }
 
@@ -162,14 +166,14 @@ public sealed class LogSphereClient : IAsyncDisposable
                 if ((int)response.StatusCode is 400 or 401 or 403 or 413)
                 {
                     // non-retryable: drop with local diagnostic
-                    _logger.LogWarning("LogSphere rejected batch: {Status}", response.StatusCode);
+                    Diag($"LogSphere rejected batch: {response.StatusCode}");
                     return;
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "LogSphere send attempt {Attempt} failed", attempt + 1);
+                Diag($"LogSphere send attempt {attempt + 1} failed", ex);
             }
 
             if (attempt < _options.MaxRetries)
@@ -184,7 +188,7 @@ public sealed class LogSphereClient : IAsyncDisposable
         {
             _circuitOpenUntil = DateTimeOffset.UtcNow + _options.CircuitBreakerCooldown;
             _consecutiveFailures = 0;
-            _logger.LogWarning("LogSphere circuit opened until {Until:T}; buffering locally", _circuitOpenUntil);
+            Diag($"LogSphere circuit opened until {_circuitOpenUntil:T}; buffering locally");
         }
         WriteOfflineBuffer(batch);
     }
@@ -214,7 +218,7 @@ public sealed class LogSphereClient : IAsyncDisposable
         catch (Exception ex)
         {
             Interlocked.Add(ref _droppedEvents, batch.Count);
-            _logger.LogDebug(ex, "Offline buffer write failed");
+            Diag("Offline buffer write failed", ex);
         }
     }
 
@@ -240,7 +244,7 @@ public sealed class LogSphereClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Offline buffer replay failed");
+            Diag("Offline buffer replay failed", ex);
         }
     }
 
