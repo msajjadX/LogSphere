@@ -77,7 +77,13 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
     throw new ApiError(0, 'LOG-NETWORK-001', 'Cannot reach the LogSphere API. Check your connection.');
   }
 
-  if (res.status === 401 && !path.startsWith('/auth/login')) {
+  // A 401 from an endpoint that *checks a credential you typed* is a field error, not a dead
+  // session — logging out there destroys the form (and, on the forced-change screen, traps the
+  // user in a login loop). Only an unexpected 401 means the token is gone.
+  const checksSubmittedCredential =
+    path.startsWith('/auth/login') || path.startsWith('/auth/change-password');
+
+  if (res.status === 401 && !checksSubmittedCredential) {
     clearToken();
     unauthorizedHandler?.();
     throw new ApiError(401, 'LOG-AUTH-001', 'Your session has expired. Please sign in again.');

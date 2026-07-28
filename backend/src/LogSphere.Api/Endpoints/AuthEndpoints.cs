@@ -85,8 +85,13 @@ public static class AuthEndpoints
                 return ApiEnvelope.Validation(ctx, "New password must be at least 10 characters.");
 
             var account = await admin.GetUserForAuthAsync(user.Username, ct);
+            // 400, not 401: the caller's session is perfectly valid — it is the submitted field
+            // that is wrong. Returning 401/LOG-AUTH-001 here is indistinguishable from an expired
+            // token, and the dashboard client logs the user out on any such 401, so one mistyped
+            // character threw the user back to the login screen instead of showing the error.
             if (account is null || !PasswordHasher.Verify(req.CurrentPassword, account.Value.PasswordHash))
-                return ApiEnvelope.Unauthorized(ctx, "Current password is incorrect.");
+                return ApiEnvelope.Fail(ctx, StatusCodes.Status400BadRequest, "LOG-AUTH-004",
+                    "Current password is incorrect.");
 
             await admin.SetPasswordAsync(user.UserId, req.NewPassword, mustChange: false, ct);
             await admin.RecordAccessAsync(user.UserId, "PasswordChanged", null,
