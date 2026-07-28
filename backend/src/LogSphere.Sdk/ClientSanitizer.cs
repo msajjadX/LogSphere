@@ -32,15 +32,19 @@ public sealed class ClientSanitizer
         if (node is null || depth > 16) return node;
         switch (node)
         {
+            // Containers are mutated in place; the only real replacement is the redaction below.
+            // Never assign a node back into its own slot: JsonObject's indexer tolerates the
+            // same-instance write, but JsonArray.SetItem calls AssignParent unconditionally and
+            // throws "node already has a parent" — which used to silently drop the whole event.
             case JsonObject obj:
                 foreach (var key in obj.Select(kv => kv.Key).ToList())
                 {
                     if (IsSensitive(key)) obj[key] = "[REDACTED]";
-                    else obj[key] = Sanitize(obj[key], depth + 1);
+                    else Sanitize(obj[key], depth + 1);
                 }
                 return obj;
             case JsonArray arr:
-                for (var i = 0; i < arr.Count; i++) arr[i] = Sanitize(arr[i], depth + 1);
+                foreach (var item in arr) Sanitize(item, depth + 1);
                 return arr;
             default:
                 return node;
