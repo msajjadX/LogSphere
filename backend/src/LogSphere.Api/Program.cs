@@ -28,6 +28,10 @@ if (!builder.Environment.IsDevelopment())
         problems.Add("LOGSPHERE_KEY_PEPPER (must be set and not the dev default)");
     if (string.IsNullOrWhiteSpace(builder.Configuration["Sanitization:HashKey"]))
         problems.Add("Sanitization:HashKey (must be set)");
+    // SupportHub is optional, but a base URL without its secret is a misconfiguration, not a choice.
+    if (!string.IsNullOrWhiteSpace(builder.Configuration["SupportHub:BaseUrl"]) &&
+        string.IsNullOrWhiteSpace(builder.Configuration["SupportHub:IntegrationSecret"]))
+        problems.Add("SupportHub:IntegrationSecret (must be set when SupportHub:BaseUrl is configured)");
     if (problems.Count > 0)
         throw new InvalidOperationException(
             $"Refusing to start in environment '{builder.Environment.EnvironmentName}': " +
@@ -62,6 +66,7 @@ builder.Services.AddScoped<CurrentUserResolver>();
 builder.Services.AddSingleton<LoginThrottle>();
 builder.Services.AddSingleton<ScopeService>();
 builder.Services.AddSingleton<Notifier>();
+builder.Services.AddSingleton<SupportHubClient>();
 builder.Services.AddSingleton<DevSeeder>();
 builder.Services.AddHttpClient();
 
@@ -166,6 +171,7 @@ AuthEndpoints.Map(app);
 QueryEndpoints.Map(app);
 OperationalEndpoints.Map(app);
 AdminEndpoints.Map(app);
+SupportEndpoints.Map(app);
 SystemEndpoints.Map(app);
 
 app.Run();

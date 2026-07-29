@@ -12,6 +12,7 @@ import {
   ClipboardList,
   KeyRound,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Menu,
   Moon,
@@ -29,6 +30,7 @@ import { Modal } from '../components/Modal';
 import { TextField } from '../components/Select';
 import { ErrorBanner } from '../components/Feedback';
 import { api, toApiError } from '../api/client';
+import { initSupportHub, openSupportPanel, SUPPORT_ERROR_EVENT } from '../support/supporthub';
 
 const SIDEBAR_KEY = 'logsphere.sidebar';
 
@@ -157,7 +159,39 @@ export function AppShell() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [supportReady, setSupportReady] = useState(false);
+  const [supportError, setSupportError] = useState<string | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Shown when opening support fails (e.g. the account has no email address) —
+  // the SDK closes the panel and reports the reason instead of a dead widget.
+  useEffect(() => {
+    const onError = (e: Event) => setSupportError((e as CustomEvent).detail as string);
+    window.addEventListener(SUPPORT_ERROR_EVENT, onError);
+    return () => window.removeEventListener(SUPPORT_ERROR_EVENT, onError);
+  }, []);
+
+  useEffect(() => {
+    if (!supportError) return;
+    const timer = setTimeout(() => setSupportError(null), 10000);
+    return () => clearTimeout(timer);
+  }, [supportError]);
+
+  // SupportHub widget: initialised once per app load (idempotent under strict-mode double
+  // effects); the button stays hidden when support is not configured server-side. The context
+  // callback reads window.location live so the panel reports the screen it was opened FROM.
+  useEffect(() => {
+    let cancelled = false;
+    initSupportHub(() => ({
+      module: pageTitle(window.location.pathname, window.location.search),
+      page: window.location.pathname + window.location.search,
+    })).then((enabled) => {
+      if (!cancelled) setSupportReady(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Slim progress bar while any API request is in flight (pages keep showing
   // their last data while revalidating — this is the only "loading" signal).
@@ -301,6 +335,17 @@ export function AppShell() {
           </div>
           <div className="flex items-center gap-2">
             {showTimeRange && <TimeRangePicker value={range} onChange={setRange} />}
+            {supportReady && (
+              <button
+                type="button"
+                className="btn-ghost !p-2"
+                onClick={openSupportPanel}
+                title="Support"
+                aria-label="Report an issue or contact support"
+              >
+                <LifeBuoy className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               className="btn-ghost !p-2"
@@ -369,6 +414,16 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {supportError && (
+        <div
+          className="fixed bottom-4 right-4 z-50 w-full max-w-sm cursor-pointer"
+          onClick={() => setSupportError(null)}
+          title="Dismiss"
+        >
+          <ErrorBanner error={supportError} />
+        </div>
+      )}
 
       <ChangePasswordModal
         open={pwOpen || forcedPasswordChange}

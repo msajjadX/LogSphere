@@ -173,7 +173,7 @@ public static class AdminEndpoints
         });
 
         group.MapPost("/users", async (HttpContext ctx, UpsertUserRequest request,
-            CurrentUserResolver resolver, AdminRepository admin, CancellationToken ct) =>
+            CurrentUserResolver resolver, AdminRepository admin, SupportHubClient support, CancellationToken ct) =>
         {
             var user = await resolver.GetAsync(ctx, ct);
             if (user is null) return ApiEnvelope.Unauthorized(ctx);
@@ -183,11 +183,12 @@ public static class AdminEndpoints
                 return ApiEnvelope.Validation(ctx, "One or more grants use an unknown role.");
             var id = await admin.UpsertUserAsync(null, request, ct);
             await Audit(admin, user, ctx, "UserCreated", new { id, request.Username }, ct);
+            await SyncToSupportHub(admin, support, id);
             return ApiEnvelope.Ok(ctx, new { id }, "User created.");
         });
 
         group.MapPut("/users/{id:guid}", async (HttpContext ctx, Guid id, UpsertUserRequest request,
-            CurrentUserResolver resolver, AdminRepository admin, CancellationToken ct) =>
+            CurrentUserResolver resolver, AdminRepository admin, SupportHubClient support, CancellationToken ct) =>
         {
             var user = await resolver.GetAsync(ctx, ct);
             if (user is null) return ApiEnvelope.Unauthorized(ctx);
@@ -196,6 +197,7 @@ public static class AdminEndpoints
                 return ApiEnvelope.Validation(ctx, "One or more grants use an unknown role.");
             await admin.UpsertUserAsync(id, request, ct);
             await Audit(admin, user, ctx, "UserUpdated", new { id }, ct);
+            await SyncToSupportHub(admin, support, id);
             return ApiEnvelope.Ok(ctx, null, "User updated.");
         });
 
@@ -393,4 +395,15 @@ public static class AdminEndpoints
 
     private static Task Audit(AdminRepository admin, UserContext user, HttpContext ctx, string action, object details, CancellationToken ct) =>
         admin.RecordAccessAsync(user.UserId, action, details, ctx.Connection.RemoteIpAddress?.ToString(), ct);
+
+    /// <summary>Keeps SupportHub's copy of a user in step after create/update — most importantly
+    /// isActive:false, which revokes that person's support access along with everything else.
+    /// The sync itself is fire-and-forget: SupportHub being slow or down must never fail or
+    /// delay LogSphere's own admin operation.</summary>
+    private static async Task SyncToSupportHub(AdminRepository admin, SupportHubClient support, Guid userId)
+    {
+        if (!support.IsConfigured) return;
+        var account = await admin.GetUserAsync(userId, CancellationToken.None);
+        if (account is not null) _ = support.TrySyncUserAsync(account, CancellationToken.None);
+    }
 }

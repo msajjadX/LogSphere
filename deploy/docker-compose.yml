@@ -30,6 +30,11 @@ services:
       # GeoIP enrichment: mount a GeoLite2-City.mmdb into the container and point this at it
       # (empty = disabled). Example volume: ./geoip:/geoip:ro + GEOIP_DB_PATH=/geoip/GeoLite2-City.mmdb
       Enrichment__GeoIpDatabasePath: ${GEOIP_DB_PATH:-}
+      # SupportHub in-app support (empty = Support button hidden). The integration secret is
+      # server-side only — it must never appear in the web bundle or a committed file.
+      SupportHub__BaseUrl: ${SUPPORTHUB_BASE_URL:-}
+      SupportHub__WidgetUrl: ${SUPPORTHUB_WIDGET_URL:-}
+      SupportHub__IntegrationSecret: ${SUPPORTHUB_INTEGRATION_SECRET:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5090/health || exit 1"]
       interval: 15s
