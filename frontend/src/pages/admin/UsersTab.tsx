@@ -350,7 +350,7 @@ export function UsersTab() {
               type="button"
               className="btn-primary"
               onClick={resetPassword}
-              disabled={busy || (newPassword.length > 0 && newPassword.trim().length < 10)}
+              disabled={busy || (newPassword.length > 0 && newPassword.trim().length < 6)}
             >
               {busy && <Spinner className="h-3.5 w-3.5 !text-white" />} Reset password
             </button>
@@ -379,7 +379,7 @@ export function UsersTab() {
           )}
           <TextField label="New password" type="password" value={newPassword} onChange={setNewPassword} autoFocus />
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            At least 10 characters — or leave blank to generate one.
+            At least 6 characters — or leave blank to generate one.
           </p>
         </div>
       </Modal>

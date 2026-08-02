@@ -81,8 +81,8 @@ public static class AuthEndpoints
         {
             var user = await resolver.GetAsync(ctx, ct);
             if (user is null) return ApiEnvelope.Unauthorized(ctx);
-            if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 10)
-                return ApiEnvelope.Validation(ctx, "New password must be at least 10 characters.");
+            if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 6)
+                return ApiEnvelope.Validation(ctx, "New password must be at least 6 characters.");
 
             var account = await admin.GetUserForAuthAsync(user.Username, ct);
             // 400, not 401: the caller's session is perfectly valid — it is the submitted field

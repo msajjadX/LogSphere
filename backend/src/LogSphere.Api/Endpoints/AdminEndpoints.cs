@@ -208,12 +208,12 @@ public static class AdminEndpoints
             if (user is null) return ApiEnvelope.Unauthorized(ctx);
             if (!user.IsSuperAdmin) return ApiEnvelope.Forbidden(ctx);
             // A password the administrator actually typed is either used or refused — never
-            // silently replaced. Substituting a generated one for anything under 10 characters
+            // silently replaced. Substituting a generated one for anything under the minimum
             // reported success while setting a secret the caller never saw, which left the
             // account unusable and looked exactly like "reset password doesn't work".
             var supplied = body?.NewPassword;
-            if (!string.IsNullOrWhiteSpace(supplied) && supplied.Trim().Length < 10)
-                return ApiEnvelope.Validation(ctx, "New password must be at least 10 characters.");
+            if (!string.IsNullOrWhiteSpace(supplied) && supplied.Trim().Length < 6)
+                return ApiEnvelope.Validation(ctx, "New password must be at least 6 characters.");
 
             var generated = string.IsNullOrWhiteSpace(supplied);
             var temp = generated ? "Tmp#" + Guid.NewGuid().ToString("N")[..12] : supplied!;
