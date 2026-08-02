@@ -23,3 +23,5 @@ deploy/geoip/
 # runtime artifacts
 *.log
 tail-state.json
+
+publish/

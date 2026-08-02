@@ -4,6 +4,10 @@ WORKDIR /src
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ .
+# There is no .git in the build context; the compose file forwards the host's
+# commit so the bundle's reported version still names the build it came from.
+ARG GIT_SHA=
+ENV GIT_SHA=$GIT_SHA
 RUN npm run build
 
 FROM nginx:1.27-alpine

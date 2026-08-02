@@ -46,6 +46,11 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
+      args:
+        # Stamped into the bundle's reported version (1.0.0+<sha>.<datetime>).
+        # Set GIT_SHA when building (e.g. GIT_SHA=$(git rev-parse --short HEAD))
+        # or leave it empty — the build-time stamp still changes per build.
+        GIT_SHA: ${GIT_SHA:-}
     container_name: logsphere-web
     depends_on:
       - api
