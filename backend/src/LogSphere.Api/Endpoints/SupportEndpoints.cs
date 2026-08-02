@@ -45,16 +45,20 @@ public static class SupportEndpoints
                 // mapped elsewhere) — the caller can't fix it by retrying, an admin must. Pass
                 // SupportHub's own message through: it names the actual conflict.
                 var detail = string.IsNullOrEmpty(sync.Message) ? "SupportHub rejected the user sync." : sync.Message;
+                // Not 502: Cloudflare (and some other proxies) replace an origin 502/504 body with
+                // their own error page, so the browser would show a generic failure instead of
+                // SupportHub's actual reason (e.g. "that project is archived"). 422 carries the
+                // envelope through untouched.
                 return sync.Code == "04"
                     ? ApiEnvelope.Fail(ctx, StatusCodes.Status409Conflict, "LOG-SUPPORT-004",
                         $"Support account conflict: {detail} Ask a SupportHub administrator to resolve it.")
-                    : ApiEnvelope.Fail(ctx, StatusCodes.Status502BadGateway, "LOG-SUPPORT-003",
+                    : ApiEnvelope.Fail(ctx, StatusCodes.Status422UnprocessableEntity, "LOG-SUPPORT-003",
                         $"Could not open support: {detail}");
             }
 
             var minted = await support.MintLaunchTokenAsync(account.Id, FilterContext(context, ctx), ct);
             if (!minted.Ok || minted.Data?["launchToken"]?.GetValue<string>() is not { Length: > 0 } launchToken)
-                return ApiEnvelope.Fail(ctx, StatusCodes.Status502BadGateway, "LOG-SUPPORT-003",
+                return ApiEnvelope.Fail(ctx, StatusCodes.Status422UnprocessableEntity, "LOG-SUPPORT-003",
                     $"Could not open support: {(string.IsNullOrEmpty(minted.Message) ? "SupportHub did not issue a launch token." : minted.Message)}");
 
             await admin.RecordAccessAsync(user.UserId, "SupportLaunch", null,
