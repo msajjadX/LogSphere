@@ -31,6 +31,9 @@ type SupportHubSdk = {
   open(): void;
   close(): void;
   attach(element: HTMLElement): void;
+  /** Added to the SDK in 2026-07; absent on older SupportHub deployments. */
+  icon?(options?: { size?: number; className?: string; title?: string }): string;
+  renderIcons?(root?: ParentNode): void;
 };
 
 /** Fired on window when opening support fails; detail is the human-readable reason. */
@@ -56,6 +59,19 @@ export function initSupportHub(getContext: () => SupportContext): Promise<boolea
 
 export function openSupportPanel(): void {
   window.SupportHub?.open();
+}
+
+/**
+ * The SupportHub mark as inline SVG markup, taken from the SDK so LogSphere
+ * never carries its own copy of the artwork — a change to the logo reaches us
+ * on the next SDK load, with no change here.
+ *
+ * Returns null when the loaded SDK predates `icon()`, which is the caller's
+ * cue to draw its own fallback.
+ */
+export function supportIconMarkup(className?: string): string | null {
+  const icon = window.SupportHub?.icon;
+  return icon ? icon({ className }) : null;
 }
 
 async function doInit(getContext: () => SupportContext): Promise<boolean> {

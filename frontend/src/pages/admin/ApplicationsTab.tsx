@@ -323,18 +323,17 @@ export function ApplicationsTab() {
     }
   };
 
+  const projectName = (a: Application): string =>
+    a.projectName ?? projects.find((p) => String(p.id) === String(a.projectId))?.name ?? String(a.projectId);
+
+  const rows = [...(data ?? [])].sort(
+    (a, b) => projectName(a).localeCompare(projectName(b)) || a.name.localeCompare(b.name),
+  );
+
   const columns: Column<Application>[] = [
-    { key: 'name', header: 'Name', render: (a) => <span className="text-sm font-medium">{a.name}</span> },
+    { key: 'project', header: 'Project', render: (a) => <span className="text-xs">{projectName(a)}</span> },
     { key: 'code', header: 'Code', render: (a) => <span className="font-mono text-xs">{a.code}</span> },
-    {
-      key: 'project',
-      header: 'Project',
-      render: (a) => (
-        <span className="text-xs">
-          {a.projectName ?? projects.find((p) => String(p.id) === String(a.projectId))?.name ?? String(a.projectId)}
-        </span>
-      ),
-    },
+    { key: 'name', header: 'Name', render: (a) => <span className="text-sm font-medium">{a.name}</span> },
     {
       key: 'active',
       header: 'Status',
@@ -382,7 +381,7 @@ export function ApplicationsTab() {
       <section className="card">
         <DataTable
           columns={columns}
-          rows={data ?? []}
+          rows={rows}
           rowKey={(a) => String(a.id)}
           loading={loading}
           onRowClick={openEdit}

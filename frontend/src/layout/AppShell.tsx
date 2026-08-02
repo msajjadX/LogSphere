@@ -12,7 +12,6 @@ import {
   ClipboardList,
   KeyRound,
   LayoutDashboard,
-  LifeBuoy,
   LogOut,
   Menu,
   Moon,
@@ -31,6 +30,7 @@ import { TextField } from '../components/Select';
 import { ErrorBanner } from '../components/Feedback';
 import { api, toApiError } from '../api/client';
 import { initSupportHub, openSupportPanel, SUPPORT_ERROR_EVENT } from '../support/supporthub';
+import { SupportHubIcon } from '../support/SupportHubIcon';
 
 const SIDEBAR_KEY = 'logsphere.sidebar';
 
@@ -130,7 +130,7 @@ function ChangePasswordModal({
         {forced && (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
             Your password was reset by an administrator. Enter the temporary password you were
-            given as the current password, then choose your own new password (at least 10
+            given as the current password, then choose your own new password (at least 6
             characters). You cannot use the platform until this is done.
           </p>
         )}
@@ -184,7 +184,9 @@ export function AppShell() {
     let cancelled = false;
     initSupportHub(() => ({
       module: pageTitle(window.location.pathname, window.location.search),
-      page: window.location.pathname + window.location.search,
+      // The full URL, not just the path: support sees which LogSphere
+      // instance the report came from, and the link is followable as-is.
+      page: window.location.href,
     })).then((enabled) => {
       if (!cancelled) setSupportReady(enabled);
     });
@@ -287,6 +289,16 @@ export function AppShell() {
           {!collapsed && <span className="text-xs">Collapse</span>}
         </button>
       </div>
+      {/* The full build string (1.1.0+sha.timestamp) is what a support ticket needs;
+          the hover title carries it even when collapsed leaves room for the bare number. */}
+      <div className="border-t border-gray-200 px-3 py-1.5 dark:border-gray-800">
+        <p
+          className="truncate text-center text-[10px] text-gray-400 dark:text-gray-500"
+          title={`LogSphere ${__APP_VERSION__}`}
+        >
+          {collapsed ? `v${__APP_VERSION__.split('+')[0]}` : `v${__APP_VERSION__}`}
+        </p>
+      </div>
     </>
   );
 
@@ -343,7 +355,7 @@ export function AppShell() {
                 title="Support"
                 aria-label="Report an issue or contact support"
               >
-                <LifeBuoy className="h-4 w-4" />
+                <SupportHubIcon className="h-4 w-4" />
               </button>
             )}
             <button
